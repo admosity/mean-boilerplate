@@ -1,0 +1,22 @@
+doctype html
+html(lang="en")
+  head
+    title Boiler
+    meta(name='viewport', content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no')
+    link(rel="stylesheet", href="/css/admin.css")
+
+    //- inject:css
+    //- endinject
+  body(ng-cloak)
+  
+    header
+      div(ui-view="header")
+          
+    main(ui-view="content" class="the-content")
+      
+
+    footer
+
+      //- inject:js
+      //- endinject
+      script(src='/js/admin.js')

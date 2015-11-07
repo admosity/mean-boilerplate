@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+echo "Post install symlink lib"
+if [ ! -e node_modules/lib ]
+then
+  if [ -e middleware ]
+  then
+    ln -s ../lib node_modules/lib
+  else
+    ln -s ../server/lib node_modules/lib
+  fi
+fi
