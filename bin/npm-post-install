@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 echo "Post install symlink lib"
-if [ ! -e node_modules/lib ]
+if [ ! -e ./node_modules/lib ]
 then
-  if [ -e middleware ]
+  if [ -e ./lib ]
   then
     ln -s ../lib node_modules/lib
   else
