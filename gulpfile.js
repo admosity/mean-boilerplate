@@ -7,6 +7,7 @@ var sourcemaps = require('gulp-sourcemaps');
 var sass = require('gulp-sass');
 var webpack = require('webpack-stream');
 var foreach = require('gulp-foreach');
+var watch = require('gulp-watch');
 
 var fs = require('fs');
 var path = require('path');
@@ -15,12 +16,37 @@ var merge = require('merge2');
 var named = require('vinyl-named');
 var _webpack = require('webpack');
 
-var child_process = require('child_process'),
-  exec = child_process.exec;
+var childProcess = require('child_process');
+var exec = childProcess.exec;
 
+var childProcesses = [];
 
-var child_processes = [];
+var lastTime = Date.now();
+var activated = false;
+var reloadTimer = null;
+function reloadBrowserSync() {
+  if (reloadTimer) {
+    clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(function() {
+      browserSync.reload();
+      reloadTimer = null;
+      lastTime = Date.now();
+    }, 125);
 
+    return;
+  }
+
+  if (Date.now() - lastTime > 100) {
+
+    reloadTimer = setTimeout(function() {
+      browserSync.reload();
+      reloadTimer = null;
+      lastTime = Date.now();
+    }, 125);
+
+    activated = true;
+  }
+}
 
 /**
  *
@@ -31,7 +57,6 @@ var child_processes = [];
  *
  *
  */
-
 
 var serverErrorHandler = function(err) {
   this.emit('end');
@@ -47,14 +72,13 @@ gulp.task('server-scripts', function() {
   );
 });
 
-
 /**
  * Task for generating the scripts in development. Has sourcemaps for generated scripts
  */
 gulp.task('server-scripts-dev', function() {
-  return merge(
-    gulp.src(['server/**/*', 'package.json']).pipe(gulp.dest('build')),
-    gulp.src(['bin/**/*']).pipe(gulp.dest('build/bin'))
+  merge(
+    gulp.src(['server/**/*', 'package.json']).pipe(watch(['server/**/*', 'package.json'], {read: false, verbose: true})).pipe(gulp.dest('build')),
+    gulp.src(['bin/**/*']).pipe(watch(['bin/**/*'], {read: false, verbose: true})).pipe(gulp.dest('build/bin'))
   );
 });
 
@@ -64,9 +88,10 @@ gulp.task('server-scripts-dev', function() {
  *
  */
 var scriptsErrorHandler = function(err) {
-    console.log('[scripts] ', err);
-    this.emit('end');
+  console.log('[scripts] ', err);
+  this.emit('end');
 };
+
 gulp.task('client-scripts-dev', function(cb) {
   var webpackConfig = require('./webpack.config');
 
@@ -74,8 +99,9 @@ gulp.task('client-scripts-dev', function(cb) {
   webpackConfig.watch = false;
   gulp.src('client/js/app.js')
     .pipe(plumber({
-      errorHandler: scriptsErrorHandler
+      errorHandler: scriptsErrorHandler,
     }))
+
     // .pipe(named()) // used named for following the naming convention for files
     .pipe(webpack(webpackConfig))
     .pipe(gulp.dest('build/public/js'));
@@ -93,15 +119,16 @@ gulp.task('client-scripts', function() {
 
     new _webpack.optimize.UglifyJsPlugin({
       compress: {
-        warnings: false
-      }
-    })
+        warnings: false,
+      },
+    }),
   ]);
 
   return gulp.src(['client/js/app.js', 'client/js/vendor.js'])
     .pipe(plumber({
-      errorHandler: scriptsErrorHandler
+      errorHandler: scriptsErrorHandler,
     }))
+
     // .pipe(named()) // used named for following the naming convention for files
     .pipe(webpack(webpackConfig))
     .pipe(gulp.dest('dist/public/js'));
@@ -113,18 +140,19 @@ gulp.task('client-scripts', function() {
  *
  */
 
-
 var htmlErrorHandler = function(err) {
   console.log('[jade] ', err.toString());
 };
 
 gulp.task('client-html-dev', function() {
   var injectConfig = require('./config/inject').dev;
-  return gulp.src('client/**/*.jade')
-    .pipe(foreach(function (stream, file) {
+  gulp.src('client/**/*.jade')
+    .pipe(watch('client/**/*.jade'))
+    .on('change', reloadBrowserSync)
+    .pipe(foreach(function(stream, file) {
       var baseFileName = path.basename(file.path);
       var hasInject = injectConfig[baseFileName];
-      if(hasInject) {
+      if (hasInject) {
         return stream
           .pipe(inject(gulp.src(hasInject)));
       } else {
@@ -132,7 +160,7 @@ gulp.task('client-html-dev', function() {
       }
     }))
     .pipe(plumber({
-      errorHandler: htmlErrorHandler
+      errorHandler: htmlErrorHandler,
     }))
     .pipe(jade({
       pretty: true,
@@ -144,10 +172,10 @@ gulp.task('client-html', function() {
   var minifyHtml = require('gulp-minify-html');
   var injectConfig = require('./config/inject').dist;
   return gulp.src('client/**/*.jade')
-    .pipe(foreach(function (stream, file) {
+    .pipe(foreach(function(stream, file) {
       var baseFileName = path.basename(file.path);
       var hasInject = injectConfig[baseFileName];
-      if(hasInject) {
+      if (hasInject) {
         return stream
           .pipe(inject(gulp.src(hasInject)));
       } else {
@@ -155,12 +183,12 @@ gulp.task('client-html', function() {
       }
     }))
     .pipe(plumber({
-      errorHandler: htmlErrorHandler
+      errorHandler: htmlErrorHandler,
     }))
     .pipe(jade({
       data: {
-        dist: true
-      }
+        dist: true,
+      },
     }))
     .pipe(minifyHtml({
       empty: true,
@@ -181,36 +209,42 @@ var sassErrorHandler = function(err) {
   console.log('[sass] ', err.messageFormatted);
   this.emit('end');
 };
+
 gulp.task('client-css-dev', function() {
-  return merge[gulp.src('client/**/*.scss')
+  merge[gulp.src('client/**/*.scss')
+    .pipe(watch('client/**/*.scss'))
     .pipe(plumber({
-      errorHandler: sassErrorHandler
+      errorHandler: sassErrorHandler,
     }))
     .pipe(sourcemaps.init())
     .pipe(sass())
     .pipe(sourcemaps.write())
     .pipe(gulp.dest('build/public'))
     .pipe(browserSync.stream()),
+
     // copy over for sourcemaps
     gulp.src('client/css/**/*.scss')
+    .pipe(watch('client/css/**/*.scss'))
     .pipe(gulp.dest('build/public/source'))
   ];;
 });
-
 
 gulp.task('client-css', function() {
   var minifyCss = require('gulp-minify-css');
   return gulp.src('client/**/*.scss')
     .pipe(plumber({
-      errorHandler: sassErrorHandler
+      errorHandler: sassErrorHandler,
     }))
     .pipe(sass())
+
     // .pipe(minifyCss())
-    .pipe(gulp.dest('dist/public'))
+    .pipe(gulp.dest('dist/public'));
 });
 
 gulp.task('copy-assets-dev', [], function() {
-  return gulp.src('client/assets/**/*')
+  gulp.src('client/assets/**/*')
+    .pipe(watch('client/assets/**/*'))
+    .on('change', reloadBrowserSync)
     .pipe(gulp.dest('build/public/assets'));
 });
 
@@ -223,10 +257,10 @@ gulp.task('start-database', [], function(cb) {
   // make the database directory if it doesn't already exist
   fs.mkdir('./database', function() {
     // run mongod
-    var mongodProcess = child_process.spawn('mongod', ['--dbpath=database'], {
-      cwd: process.cwd()
+    var mongodProcess = childProcess.spawn('mongod', ['--dbpath=database'], {
+      cwd: process.cwd(),
     });
-    child_processes.push(mongodProcess);
+    childProcesses.push(mongodProcess);
 
     var once = false;
     var mongoDataListener = function(data) {
@@ -239,6 +273,7 @@ gulp.task('start-database', [], function(cb) {
         console.log('\x1b[92m == Mongo database started and listening on 27017 == ');
       }
     };
+
     mongodProcess.stdout.on('data', mongoDataListener);
 
   });
@@ -247,128 +282,71 @@ gulp.task('start-database', [], function(cb) {
 
 gulp.task('start-redis', [], function(cb) {
   // make the database directory if it doesn't already exist
-    // run mongod
-    child_processes.push();
-    var redisProcess = child_process.spawn('redis-server', [], {
-      cwd: process.cwd()
-    });
+  // run mongod
+  childProcesses.push();
+  var redisProcess = childProcess.spawn('redis-server', [], {
+    cwd: process.cwd(),
+  });
 
-    var once = false;
-    var redisListener = function(data) {
-      console.log(data.toString());
-      // check for textual acknowledgement that the mongo database daemon is
-      // started and listening
-      if (!once && ~data.toString().indexOf('The server is now ready to accept connections on port 6379')) {
-        cb();
-        once = true;
-        this.removeListener('data', redisListener);
-        console.log('\x1b[92m == Redis started and listening on 6379 == ');
-      }
-    };
-    redisProcess.stdout.on('data', redisListener);
+  var once = false;
+  var redisListener = function(data) {
+    console.log(data.toString());
+
+    // check for textual acknowledgement that the mongo database daemon is
+    // started and listening
+    if (!once && ~data.toString().indexOf('The server is now ready to accept connections on port 6379')) {
+      cb();
+      once = true;
+      this.removeListener('data', redisListener);
+      console.log('\x1b[92m == Redis started and listening on 6379 == ');
+    }
+  };
+
+  redisProcess.stdout.on('data', redisListener);
 
 });
+
+gulp.task('client', ['copy-assets-dev', 'client-html-dev', 'client-css-dev', 'client-scripts-dev']);
 
 gulp.task('server', ['server-scripts-dev', 'start-database'], function(cb) {
   var nodemon = require('gulp-nodemon');
   var once = false;
   return nodemon({
-    script: 'build',
-    ext: 'js',
-    ignore: ['build/public/**/*'],
-    watch: 'build',
-    stdout: false
+      script: 'build',
+      ext: 'js',
+      ignore: ['build/public/**/*'],
+      watch: 'build',
+      stdout: false,
+      delay: 200,
 
-  }).on('stdout', function(data) {
-    // pass through all standard output
-    process.stdout.write(data.toString());
-    // perform the callback when the server is ready
-    if (!once) {
-      cb();
-      once = true;
-    }
-  })
-  .on('stderr', function(data) {
-    process.stderr.write(data.toString())
-  });
+    }).on('stdout', function(data) {
+      // pass through all standard output
+      process.stdout.write(data.toString());
+
+      // perform the callback when the server is ready
+      if (!once) {
+        cb();
+        once = true;
+      }
+    })
+    .on('stderr', function(data) {
+      process.stderr.write(data.toString());
+    })
+    .on('restart', reloadBrowserSync);
 
 });
 
-gulp.task('browser-sync', ['server', 'client-html-dev'], function(cb) {
-
+gulp.task('browser-sync', ['client', 'server'], function() {
   // initialize
   browserSync.init({
-    proxy: "localhost:3000",
-    port: 5000
+    proxy: 'localhost:3000',
+    port: 5000,
   });
-
-  // watch for the html changes and reload accordingly
-  gulp.watch(['build/public/**/*.js', 'build/public/**/*.html'])
-    .on('change', browserSync.reload);
-  cb();
-  // gulp.watch()
 });
 
+gulp.task('watch', ['browser-sync']);
 
-gulp.task('watch', ['start-database', 'copy-assets-dev', 'client-html-dev', 'client-css-dev', 'client-scripts-dev', 'server-scripts-dev', 'server', 'browser-sync'], function() {
-
-  var del = require('del');
-  var path = require('path');
-  var changeHandlerFactory = function(prefix, destPath, ext, outExt) {
-    return function(event) {
-      if (event.type === 'deleted') {
-        // Simulating the {base: 'src'} used with gulp.src in the scripts task
-        var filePathFromSrc = path.relative(path.resolve(prefix), event.path);
-
-        // Concatenating the 'build' absolute path used by gulp.dest in the scripts task
-        var destFilePath = path.resolve(destPath, filePathFromSrc);
-        var indexOfExt = destFilePath.indexOf(ext);
-        destFilePath = destFilePath.substring(0, indexOfExt) + outExt;
-        fs.unlink(destFilePath, function() {
-          console.log('Deleted: ', destFilePath);
-        })
-      }
-    };
-  };
-  [
-    {
-      prefix: 'server',
-      ext: '.js',
-      outExt: '.js',
-      suffix: './build/',
-      tasks: ['server-scripts-dev']
-    },
-    {
-      prefix: 'client',
-      ext: '.jade',
-      outExt: '.html',
-      suffix: './build/public',
-      tasks: ['client-html-dev']
-    },
-    {
-      prefix: 'client',
-      ext: '.scss',
-      outExt: '.css',
-      suffix: './build/public',
-      tasks: ['client-css-dev']
-    },
-    {
-      prefix: 'client/assets',
-      ext: '',
-      outExt: '',
-      suffix: './build/public/assets',
-      tasks: ['copy-assets']
-    }
-  ].forEach(function(task) {
-    var watcher = gulp.watch(task.prefix + '/**/*' + task.ext, task.tasks);
-    watcher.on('change', changeHandlerFactory(task.prefix, task.suffix, task.ext, task.outExt));
-  });
-
-
-  gulp.watch(['client/js/**/*.js'], ['client-scripts-dev']);
-});
-
-gulp.task('default', ['clean-build']);
+gulp.task('default', ['watch']);
 
 gulp.task('clean', function(cb) {
   var del = require('del');
@@ -384,14 +362,14 @@ gulp.task('clean-all', function(cb) {
     if (paths) console.log('Deleted files/folders:\n', paths.join('\n'));
     cb();
   });
-})
+});
 
 gulp.task('clean-build', ['clean'], function() {
   gulp.start('server-scripts', 'client-scripts', 'client-html', 'client-css', 'copy-assets');
 });
 
-process.on('uncaughtException', function (err) {
-  child_processes.forEach(function (c) {
+process.on('uncaughtException', function(err) {
+  childProcesses.forEach(function(c) {
     c.kill();
   });
-})
+});
