@@ -48,6 +48,28 @@ function reloadBrowserSync() {
   }
 }
 
+function removeFileHandler(fromPath, targetPath, extensionTransforms) {
+  var transforms = extensionTransforms.map(function(transform) {
+    return [new RegExp('\\.' + transform[0] + '$'), '.' + transform[1]];
+  });
+
+  return function(filePath) {
+    var relativePath = path.relative(__dirname + '/' + fromPath, filePath);
+    var removePath = path.resolve(__dirname + '/' + targetPath + '/' + relativePath);
+    transforms.forEach(function(transform) {
+      removePath = ''.replace.apply(removePath, transform);
+    });
+
+    fs.unlink(removePath, function(err) {
+      if (err) {
+        console.error('[Removed File]', err);
+      } else {
+        console.log('[Removed File]', removePath);
+      }
+    });
+  };
+}
+
 /**
  *
  *
@@ -149,6 +171,7 @@ gulp.task('client-html-dev', function() {
   gulp.src('client/**/*.jade')
     .pipe(watch('client/**/*.jade'))
     .on('change', reloadBrowserSync)
+    .on('unlink', removeFileHandler('client', 'build/public', [['jade', 'html']]))
     .pipe(foreach(function(stream, file) {
       var baseFileName = path.basename(file.path);
       var hasInject = injectConfig[baseFileName];
@@ -245,6 +268,9 @@ gulp.task('copy-assets-dev', [], function() {
   gulp.src('client/assets/**/*')
     .pipe(watch('client/assets/**/*'))
     .on('change', reloadBrowserSync)
+    .on('unlink', function() {
+      console.log(arguments);
+    })
     .pipe(gulp.dest('build/public/assets'));
 });
 
