@@ -49,7 +49,7 @@ function reloadBrowserSync() {
 }
 
 function removeFileHandler(fromPath, targetPath, extensionTransforms) {
-  var transforms = extensionTransforms.map(function(transform) {
+  var transforms = (extensionTransforms || []).map(function(transform) {
     return [new RegExp('\\.' + transform[0] + '$'), '.' + transform[1]];
   });
 
@@ -118,8 +118,7 @@ gulp.task('client-scripts-dev', function(cb) {
   var webpackConfig = require('./webpack.config');
 
   // Configure webpack to watch for changes
-  webpackConfig.watch = false;
-  gulp.src('client/js/app.js')
+  gulp.src('')
     .pipe(plumber({
       errorHandler: scriptsErrorHandler,
     }))
@@ -135,6 +134,7 @@ gulp.task('client-scripts', function() {
 
   // do not use any dev tool (namely the sourcemap tool)
   delete webpackConfig.devtool;
+  delete webpackConfig.watch;
 
   // configure plugin to uglify js
   webpackConfig.plugins = (webpackConfig.plugins || []).concat([
@@ -146,12 +146,10 @@ gulp.task('client-scripts', function() {
     }),
   ]);
 
-  return gulp.src(['client/js/app.js', 'client/js/vendor.js'])
+  return gulp.src('')
     .pipe(plumber({
       errorHandler: scriptsErrorHandler,
     }))
-
-    // .pipe(named()) // used named for following the naming convention for files
     .pipe(webpack(webpackConfig))
     .pipe(gulp.dest('dist/public/js'));
 });
@@ -268,9 +266,7 @@ gulp.task('copy-assets-dev', [], function() {
   gulp.src('client/assets/**/*')
     .pipe(watch('client/assets/**/*'))
     .on('change', reloadBrowserSync)
-    .on('unlink', function() {
-      console.log(arguments);
-    })
+    .on('unlink', removeFileHandler('client/assets', 'build/public/assets'))
     .pipe(gulp.dest('build/public/assets'));
 });
 
@@ -342,23 +338,16 @@ gulp.task('server', ['server-scripts-dev', 'start-database'], function(cb) {
       ext: 'js',
       ignore: ['build/public/**/*'],
       watch: 'build',
-      stdout: false,
       delay: 200,
-
-    }).on('stdout', function(data) {
-      // pass through all standard output
-      process.stdout.write(data.toString());
-
-      // perform the callback when the server is ready
+    })
+    .on('restart', function() {
       if (!once) {
         cb();
         once = true;
+      } else {
+        reloadBrowserSync();
       }
-    })
-    .on('stderr', function(data) {
-      process.stderr.write(data.toString());
-    })
-    .on('restart', reloadBrowserSync);
+    });
 
 });
 
