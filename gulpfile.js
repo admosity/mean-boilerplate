@@ -118,12 +118,12 @@ gulp.task('server-scripts', function() {
  */
 gulp.task('server-scripts-dev', function(cb) {
   merge(
-    gulp.src(['server/**/*', 'package.json'])
+    gulp.src(['server/**/*', 'package.json'], {read: false})
       .pipe(watch(['server/**/*', 'package.json'], {read: false, verbose: true}))
       .pipe(gulp.dest('build'))
       .pipe(tapDone(cb))
       .pipe(restartNode()),
-    gulp.src(['bin/**/*'])
+    gulp.src(['bin/**/*'], {read: false})
       .pipe(watch(['bin/**/*'], {read: false, verbose: true}))
       .pipe(gulp.dest('build/bin'))
       .pipe(restartNode())
@@ -291,8 +291,8 @@ gulp.task('client-css', function() {
 });
 
 gulp.task('copy-assets-dev', function(cb) {
-  gulp.src('client/assets/**/*')
-    .pipe(watch('client/assets/**/*'))
+  gulp.src('client/assets/**/*', {read: false})
+    .pipe(watch('client/assets/**/*', {read: false, verbose: true}))
     .on('change', reloadBrowserSync)
     .on('unlink', removeFileHandler('client/assets', 'build/public/assets'))
     .pipe(gulp.dest('build/public/assets'))

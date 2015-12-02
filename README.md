@@ -29,7 +29,7 @@ Local Build
 ===========
 
 1. `make` - installs heroku build plugin and runs `npm install` (you only need to run `make` once in the beginning of the project)
-1. `gulp watch`
+1. `gulp`
 
 This will build all the assets into a local `build` directory as well as fire up a server, mongo database listening on the default port using a created `database` directory. The server will be running behind [nodemon](https://github.com/remy/nodemon) which will detect changes to the server and automatically restart the server when necessary. The browser will also automatically refresh on js and css changes with the help of [Browsersync](http://www.browsersync.io/).
 
@@ -169,4 +169,3 @@ TODO
 ====
 
 1. Testing frameworks
-1. Better watch process to detect file removal.
