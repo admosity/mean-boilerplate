@@ -339,15 +339,19 @@ gulp.task('server', ['server-scripts-dev', 'start-database'], function(cb) {
       ignore: ['build/public/**/*'],
       watch: 'build',
       delay: 200,
+      stdout: false,
     })
-    .on('restart', function() {
+    .on('stdout', function(data) {
+      process.stdout.write(data);
       if (!once) {
         cb();
         once = true;
-      } else {
-        reloadBrowserSync();
       }
-    });
+    })
+    .on('stderr', function (data) {
+      process.stderr.write(data);
+    })
+    .on('restart', reloadBrowserSync);
 
 });
 
