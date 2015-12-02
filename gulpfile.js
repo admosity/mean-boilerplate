@@ -21,8 +21,28 @@ var exec = childProcess.exec;
 
 var childProcesses = [];
 
+// To be set later in the server task
+var restartNodeProcess = null;
+/**
+ * Restart node
+ * @return {Function}
+ */
+var restartNode = function() {
+  var tap = require('gulp-tap');
+  return tap(function() {
+    restartNodeProcess && restartNodeProcess();
+  });
+};
+
+function tapDone(cb) {
+  var tap = require('gulp-tap');
+  return tap(function() {
+    cb && cb();
+    cb = null;
+  });
+}
+
 var lastTime = Date.now();
-var activated = false;
 var reloadTimer = null;
 function reloadBrowserSync() {
   if (reloadTimer) {
@@ -44,7 +64,6 @@ function reloadBrowserSync() {
       lastTime = Date.now();
     }, 125);
 
-    activated = true;
   }
 }
 
@@ -97,10 +116,17 @@ gulp.task('server-scripts', function() {
 /**
  * Task for generating the scripts in development. Has sourcemaps for generated scripts
  */
-gulp.task('server-scripts-dev', function() {
+gulp.task('server-scripts-dev', function(cb) {
   merge(
-    gulp.src(['server/**/*', 'package.json']).pipe(watch(['server/**/*', 'package.json'], {read: false, verbose: true})).pipe(gulp.dest('build')),
-    gulp.src(['bin/**/*']).pipe(watch(['bin/**/*'], {read: false, verbose: true})).pipe(gulp.dest('build/bin'))
+    gulp.src(['server/**/*', 'package.json'])
+      .pipe(watch(['server/**/*', 'package.json'], {read: false, verbose: true}))
+      .pipe(gulp.dest('build'))
+      .pipe(tapDone(cb))
+      .pipe(restartNode()),
+    gulp.src(['bin/**/*'])
+      .pipe(watch(['bin/**/*'], {read: false, verbose: true}))
+      .pipe(gulp.dest('build/bin'))
+      .pipe(restartNode())
   );
 });
 
@@ -125,8 +151,8 @@ gulp.task('client-scripts-dev', function(cb) {
 
     // .pipe(named()) // used named for following the naming convention for files
     .pipe(webpack(webpackConfig))
-    .pipe(gulp.dest('build/public/js'));
-  cb();
+    .pipe(gulp.dest('build/public/js'))
+    .pipe(tapDone(cb));
 });
 
 gulp.task('client-scripts', function() {
@@ -164,7 +190,7 @@ var htmlErrorHandler = function(err) {
   console.log('[jade] ', err.toString());
 };
 
-gulp.task('client-html-dev', function() {
+gulp.task('client-html-dev', function(cb) {
   var injectConfig = require('./config/inject').dev;
   gulp.src('client/**/*.jade')
     .pipe(watch('client/**/*.jade'))
@@ -186,7 +212,8 @@ gulp.task('client-html-dev', function() {
     .pipe(jade({
       pretty: true,
     }))
-    .pipe(gulp.dest('build/public'));
+    .pipe(gulp.dest('build/public'))
+    .pipe(tapDone(cb));
 });
 
 gulp.task('client-html', function() {
@@ -231,7 +258,7 @@ var sassErrorHandler = function(err) {
   this.emit('end');
 };
 
-gulp.task('client-css-dev', function() {
+gulp.task('client-css-dev', function(cb) {
   merge[gulp.src('client/**/*.scss')
     .pipe(watch('client/**/*.scss'))
     .pipe(plumber({
@@ -241,6 +268,7 @@ gulp.task('client-css-dev', function() {
     .pipe(sass())
     .pipe(sourcemaps.write())
     .pipe(gulp.dest('build/public'))
+    .pipe(tapDone(cb))
     .pipe(browserSync.stream()),
 
     // copy over for sourcemaps
@@ -262,12 +290,13 @@ gulp.task('client-css', function() {
     .pipe(gulp.dest('dist/public'));
 });
 
-gulp.task('copy-assets-dev', [], function() {
+gulp.task('copy-assets-dev', function(cb) {
   gulp.src('client/assets/**/*')
     .pipe(watch('client/assets/**/*'))
     .on('change', reloadBrowserSync)
     .on('unlink', removeFileHandler('client/assets', 'build/public/assets'))
-    .pipe(gulp.dest('build/public/assets'));
+    .pipe(gulp.dest('build/public/assets'))
+    .pipe(tapDone(cb));
 });
 
 gulp.task('copy-assets', [], function() {
@@ -332,27 +361,37 @@ gulp.task('client', ['copy-assets-dev', 'client-html-dev', 'client-css-dev', 'cl
 
 gulp.task('server', ['server-scripts-dev', 'start-database'], function(cb) {
   var nodemon = require('gulp-nodemon');
-  var once = false;
-  return nodemon({
+  var active = false;
+  nodeProcess = nodemon({
       script: 'build',
-      ext: 'js',
-      ignore: ['build/public/**/*'],
+      ext: '',
+      ignore: ['*.*'],
       watch: 'build',
-      delay: 200,
+      delay: Infinity,
       stdout: false,
+      events: {
+        restart: 'osascript -e \'display notification "Server restarted" with title "Mean stack"\'',
+      },
     })
     .on('stdout', function(data) {
       process.stdout.write(data);
-      if (!once) {
-        cb();
-        once = true;
+      if (!active && data.toString().indexOf('listening')) {
+        cb && cb();
+        cb = null;
+        active = true;
+        reloadBrowserSync();
       }
     })
-    .on('stderr', function (data) {
+    .on('stderr', function(data) {
       process.stderr.write(data);
     })
-    .on('restart', reloadBrowserSync);
+    .on('restart', function() {
+      active = false;
+    });
 
+  restartNodeProcess = function() {
+    if (active) nodeProcess.emit('restart');
+  };
 });
 
 gulp.task('browser-sync', ['client', 'server'], function() {
