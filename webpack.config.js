@@ -1,7 +1,7 @@
 var webpack = require('webpack');
 var path = require('path');
 
-var ngAnnotatePlugin = require('ng-annotate-webpack-plugin');
+var AngularAnnotatePlugin = require('ng-annotate-webpack-plugin');
 
 function resoveNodeModulePath(componentPath) {
   return path.join(__dirname, 'node_modules', componentPath);
@@ -14,15 +14,16 @@ function resoveNodeModulePath(componentPath) {
  * @return {void}        nothing, modifies dest
  */
 function resolveNpmDependencies(dest, source) {
-  source.forEach(function (k) {
+  source.forEach(function(k) {
     dest[k] = require.resolve(k);
   });
 }
+
 module.exports = {
   // cache for faster builds
   cache: true,
 
-
+  watch: true,
   entry: {
     user: path.join(__dirname, 'client/js/user.js'),
     admin: path.join(__dirname, 'client/js/admin.js'),
@@ -30,8 +31,9 @@ module.exports = {
 
   output: {
     filename: '[name].js',
-    path: path.join(__dirname, 'build/public/js')
+    path: path.join(__dirname, 'build/public/js'),
   },
+
   // create source maps
   devtool: 'source-map',
 
@@ -42,39 +44,41 @@ module.exports = {
       // what a shame. (export window.angular when angular is requested)
       {
         test: /[\/]angular\.js$/,
-        loader: "exports?window.angular"
+        loader: 'exports?window.angular',
       },
 
     ],
     noParse: [
       /angular-ui/,
-      /jquery/
-    ]
+      /jquery/,
+    ],
   },
 
   // look for these files
   resolve: {
-    modulesDirectories: ["bower_components", "node_modules"],
+    modulesDirectories: ['bower_components', 'node_modules'],
     extensions: ['', '.webpack.js', '.web.js', '.js'],
 
     // aliases for modules
     alias: resolveNpmDependencies({}, [
       'angular',
       'angular-ui-router',
-    ])
+    ]),
   },
 
   externals: {
     angular: 'angular',
-    '$': 'jQuery',
+    $: 'jQuery',
   },
 
   plugins: [
+
     // check the main field in bower.json of loaded package for the proper
     // file to load
     new webpack.ResolverPlugin([
-      new webpack.ResolverPlugin.DirectoryDescriptionFilePlugin("bower.json", ["main"])
+      new webpack.ResolverPlugin.DirectoryDescriptionFilePlugin('bower.json', ['main']),
     ]),
+
     // // Export globals into all files
     // new webpack.ProvidePlugin({
     //   // '$': 'jquery',
@@ -82,9 +86,9 @@ module.exports = {
     //   // angular: 'angular',
     // }),
     // Keep the angular dependency format DRY
-    new ngAnnotatePlugin({
+    new AngularAnnotatePlugin({
       add: true,
-    })
-  ]
+    }),
+  ],
 
 };
