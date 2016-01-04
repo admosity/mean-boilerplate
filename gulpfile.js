@@ -118,12 +118,12 @@ gulp.task('server-scripts', function() {
  */
 gulp.task('server-scripts-dev', function(cb) {
   merge(
-    gulp.src(['server/**/*', 'package.json'], {read: false})
-      .pipe(watch(['server/**/*', 'package.json'], {read: false, verbose: true}))
+    gulp.src(['server/**/*', 'package.json'], {})
+      .pipe(watch(['server/**/*', 'package.json'], {verbose: true}))
       .pipe(gulp.dest('build'))
       .pipe(tapDone(cb))
       .pipe(restartNode()),
-    gulp.src(['bin/**/*'], {read: false})
+    gulp.src(['bin/**/*'], {})
       .pipe(watch(['bin/**/*'], {read: false, verbose: true}))
       .pipe(gulp.dest('build/bin'))
       .pipe(restartNode())
