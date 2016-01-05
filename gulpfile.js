@@ -259,7 +259,7 @@ var sassErrorHandler = function(err) {
 };
 
 gulp.task('client-css-dev', function(cb) {
-  merge[gulp.src('client/**/*.scss')
+  merge(gulp.src('client/**/*.scss')
     .pipe(watch('client/**/*.scss'))
     .pipe(plumber({
       errorHandler: sassErrorHandler,
@@ -275,7 +275,7 @@ gulp.task('client-css-dev', function(cb) {
     gulp.src('client/css/**/*.scss')
     .pipe(watch('client/css/**/*.scss'))
     .pipe(gulp.dest('build/public/source'))
-  ];;
+  );
 });
 
 gulp.task('client-css', function() {
