@@ -28,7 +28,7 @@ nconf.defaults({
 	NODE_ENV: "development",
 });
 
-mongoose.connect(nconf.get('MONGOLAB_URI') || nconf.get('MONGO_URI'));
+mongoose.connect(nconf.get('MONGODB_URI') || nconf.get('MONGO_URI'));
 
 mongoose.set('debug', development);
 
